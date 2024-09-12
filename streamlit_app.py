@@ -1,9 +1,9 @@
 # Import python packages
 import streamlit as st
-from snowflake.snowpark.functions import col
 from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.functions import col
-
+import requests
+import pandas as pd
 
 # Write directly to the app
 st.title(":cup_with_straw: Customize Your Smoothie! :cup_with_straw:")
@@ -13,12 +13,15 @@ st.write("Choose the fruits you want in your custom Smoothie!")
 title = st.text_input("Name on Smoothie:")
 st.write("The name on your smoothie will be:", title)
 
-cnx = st.connection("snowflake")
-session = cnx.session()
-
 session = get_active_session()
-my_dataframe = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME'))
-# st.dataframe(data=my_dataframe, use_container_width=True)
+my_dataframe = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME'),col('SEARCH_ON'))
+#st.dataframe(data=my_dataframe, use_container_width=True)
+#st.stop()
+
+#Convert the Snowpark Dataframe to a Pandas Dataframe so we can use the LOC function
+pd_df=my_dataframe.to_pandas()
+#st.dataframe(pd_df)
+#st.stop()
 
 Ingredients_list = st.multiselect(
     'Choose upto 5 ingredients:'
@@ -34,9 +37,13 @@ if Ingredients_list:
 
     for fruit_chosen in Ingredients_list:
             ingredients_string += fruit_chosen + ' '
-            st.subheader(fruit_chosen + 'Nutrition Information')
-            fruityvice_response = requests.get("https://fruityvice.com/api/fruit/watermelon")
-            fv_df = st.dataframe(data=fruityvise_response.json(), use_container_width=True)
+
+            search_on=pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
+            st.write('The search value for ', fruit_chosen,' is ', search_on, '.')
+        
+            st.subheader(fruit_chosen + ' Nutrition Information')
+            fruityvice_response = requests.get("https://fruityvice.com/api/fruit/" + fruit_chosen)
+            fv_df = st.dataframe(data=fruityvice_response.json(), use_container_width=True)
     #st.write(ingredients_string)
     
     my_insert_stmt = """ insert into smoothies.public.orders(INGREDIENTS, NAME_ON_ORDER) 
@@ -52,8 +59,5 @@ if Ingredients_list:
     
         st.success(f'Your Smoothie is ordered,{title}!', icon="✅")
 
-#New sectionto display fruityvise nutrition information
-import requests
-fruityvice_response = requests.get("https://fruityvice.com/api/fruit/watermelon")
-#st.text(fruityvice_response)
-fv_df = st.dataframe(data=fruityvise_responses.json(), use_container_width=True)
+
+
